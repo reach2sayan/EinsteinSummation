@@ -9,9 +9,11 @@
 #include <ranges>
 #include <regex>
 #include <set>
-#include <string>
 #include <string_view>
 #include <tuple>
+
+#include "expression.hpp"
+#include "generator.hpp"
 
 using Eigen::MatrixXd;
 
@@ -30,18 +32,20 @@ class EinsteinSummation {
   }
 
  private:
+  Expression procedure;
+  const Tuple pots;
+  bool validate_procedure();
   void parse_and_create_object();
   std::string unique_tables;
   std::map<std::string, std::vector<int>> dim_to_table_map;
+  std::generator<const std::vector<int>&> generate_combinations(
+      const std::vector<int>& n);
   std::vector<int> broadcast_dims;
   std::string broadcast_list;
   std::vector<int> combinations;
   std::map<char, int> unique_dict;
   bool contains_arrow;
   bool contains_repeated_index;
-
-  const std::string procedure;
-  const Tuple pots;
 };
 
 template <typename Tuple>
@@ -60,23 +64,32 @@ EinsteinSummation<Tuple>::EinsteinSummation(std::string&& _proc,
 inline auto diagonal(const MatrixXd& pot) { return pot.diagonal(); }
 inline auto diagonal_sum(const MatrixXd& pot) { return pot.diagonal().sum(); }
 
-template <typename T>
-std::vector<int> make_dimension_tuple(const T& obj);
-
-template <typename Tuple, std::size_t... Is>
-void tuple_to_map_impl(std::map<std::string, std::vector<int>>& m,
-		       const Tuple& t, const std::vector<std::string>& tables,
-		       std::index_sequence<Is...>) {
-  (..., (m[tables[Is]] = make_dimension_tuple(std::get<Is>(t))));
-}
-
-template <typename... Args>
-std::map<std::string, std::vector<int>> tupleToMap(
-    const std::tuple<Args...>& pots, const std::vector<std::string>& tables) {
-  std::map<std::string, std::vector<int>> m;
-  tuple_to_map_impl(m, pots, tables, std::index_sequence_for<Args...>{});
-  return m;
-}
-
-std::vector<std::string> string_split(const std::string& str, char delimiter);
 #endif
+
+#if defined(SHOW_OLD_CODE)
+std::string flat_tables =
+    std::accumulate(tabs.begin(), tabs.end(), std::string(""));
+unique_tables = std::ranges::sort(remove_duplicates(flat_tables));
+
+std::vector<int> flat_dim;
+for (const auto& [key, vec] : dim_to_table_map) {
+  flat_dim.insert(flat_dim.end(), vec.begin(), vec.end());
+}
+
+for (const auto& [index, letter] : std::views::enumerate(flat_tables))
+  unique_dict[letter] = flat_dim[index];
+
+const int KEY_NOT_FOUND_DEFAULT = -1;
+std::vector<int> combinations;
+std::transform(unique_tables.begin(), unique_tables.end(),
+	       std::back_inserter(combinations), [this](char z) -> int {
+		 auto it = this->unique_dict.find(z);
+		 return (it != this->unique_dict.end()) ? it->second
+							: KEY_NOT_FOUND_DEFAULT;
+	       });
+
+combinations.erase(std::remove(combinations.begin(), combinations.end(),
+			       KEY_NOT_FOUND_DEFAULT),
+		   combinations.end());
+#endif
+

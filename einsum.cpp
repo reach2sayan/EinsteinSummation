@@ -1,35 +1,38 @@
 #include "einsum.hpp"
 
-auto string_split(const std::string& str, char delimiter)
-    -> std::vector<std::string> {
-  auto to_string = [](auto&& r) -> std::string {
-    auto data = &(*r.begin());
-    size_t size = static_cast<std::size_t>(std::ranges::distance(r));
-    return {data, size};
-  };
-  auto range = str | std::ranges::views::split(delimiter) |
-	       std::ranges::views::transform(to_string);
-
-  return {range.begin(), range.end()};
+std::generator<const std::vector<int>&> combo(const std::vector<int>& n) {
+  std::vector<int> r(n.size(), 0);
+  while (true) {
+    co_yield r;
+    int p = r.size() - 1;
+    r[p] += 1;
+    while (r[p] == n[p]) {
+      r[p] = 0;
+      p -= 1;
+      if (p < 0)
+	co_return;
+      else
+	r[p] += 1;
+    }
+  }
 }
-
-auto parse_string(const std::string& procedure)
-    -> std::tuple<std::vector<std::string>, std::string> {
-  std::vector<std::string> halves = string_split(procedure, '/');
-  std::vector<std::string> tables = string_split(halves.front(), ',');
-  std::string broadcast = halves[1];
-
-  return {std::move(tables), std::move(broadcast)};
-}
-
-template <typename T>
-auto make_dimension_tuple(const T& obj) -> std::vector<int> {
-  std::vector<int> retlist;
-  retlist.reserve(obj.NumDimensions);
-  std::ranges::iota_view<int, int> indices{0, obj.NumDimensions};
-  std::transform(indices.begin(), indices.end(), std::back_inserter(retlist),
-		 [&](int i) { return obj.dimensions()[i]; });
-  return retlist;
+template <typename Tuple>
+std::generator<const std::vector<int>&>
+EinsteinSummation<Tuple>::generate_combinations(const std::vector<int>& n) {
+  std::vector<int> r(n.size(), 0);
+  while (true) {
+    co_yield r;
+    int p = r.size() - 1;
+    r[p] += 1;
+    while (r[p] == n[p]) {
+      r[p] = 0;
+      p -= 1;
+      if (p < 0)
+	co_return;
+      else
+	r[p] += 1;
+    }
+  }
 }
 
 std::string remove_duplicates(const std::string& input) {
@@ -50,42 +53,11 @@ std::string remove_duplicates(const std::string& input) {
 
 template <typename Tuple>
 void EinsteinSummation<Tuple>::parse_and_create_object() {
-  std::regex regexp{"(.)\1"};
-  contains_repeated_index = std::regex_search(procedure, regexp);
-  contains_arrow = true;  // procedure.contains("->"sv);
+  const auto& left_expression = procedure.get_left_expression();
+  auto dim_to_table_map = tupleToMap(pots, left_expression.get_tables());
 
-  // if (containsArrow && match) return std::get<0>(pots).diagonal();
-  // if (containsArrow) return std::get<0>(pots).diagonal().sum();
-  //
-  auto [tabs, bds] = parse_string(procedure);
-
-  auto dim_to_table_map = tupleToMap(pots, tabs);
-
-  std::string flat_tables =
-      std::accumulate(tabs.begin(), tabs.end(), std::string(""));
-  unique_tables = std::ranges::sort(remove_duplicates(flat_tables));
-
-  std::vector<int> flat_dim;
-  for (const auto& [key, vec] : dim_to_table_map) {
-    flat_dim.insert(flat_dim.end(), vec.begin(), vec.end());
-  }
-
-  for (const auto& [index, letter] : std::views::enumerate(flat_tables))
-    unique_dict[letter] = flat_dim[index];
-
-  const int KEY_NOT_FOUND_DEFAULT = -1;
-  std::vector<int> combinations;
-  std::transform(unique_tables.begin(), unique_tables.end(),
-		 std::back_inserter(combinations), [this](char z) -> int {
-		   auto it = this->unique_dict.find(z);
-		   return (it != this->unique_dict.end())
-			      ? it->second
-			      : KEY_NOT_FOUND_DEFAULT;
-		 });
-
-  combinations.erase(std::remove(combinations.begin(), combinations.end(),
-				 KEY_NOT_FOUND_DEFAULT),
-		     combinations.end());
+  bool left_expression_is_valid =
+      left_expression.validate_expression(dim_to_table_map);
 }
 
 int main() {
@@ -158,5 +130,11 @@ int main() {
   std::cout << "Combinations\n";
   for (auto&& v : combinations) std::cout << v << ", ";
 
+  int l4 = 0;
+  for (const std::vector<int>& x : combo(combinations)) {
+    for (int i : x) std::cout << i << ",";
+    std::cout << std::endl;
+    ++l4;
+  }
   return 0;
 }

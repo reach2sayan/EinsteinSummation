@@ -34,7 +34,7 @@ class Expression {
   class LeftExpression {
    public:
     LeftExpression() = default;
-    LeftExpression(std::string&& s) : lexpr{s}, tables{string_split(s, ',')} {};
+    LeftExpression(std::string&& s) : lexpr{s}, tables{string_split(lexpr, ',')} {};
     std::vector<std::string> get_tables() const { return tables; }
 
     template <typename Tuple>

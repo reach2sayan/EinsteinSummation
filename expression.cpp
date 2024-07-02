@@ -1,8 +1,8 @@
 #include "expression.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <ranges>
-#include <tuple>
 
 template <typename T>
 auto make_dimension_tuple(const T& obj) -> std::vector<int> {
@@ -21,6 +21,7 @@ auto string_split(const std::string& str, char delimiter)
     size_t size = static_cast<std::size_t>(std::ranges::distance(r));
     return {data, size};
   };
+
   auto range = str | std::ranges::views::split(delimiter) |
 	       std::ranges::views::transform(to_string);
 

@@ -1,13 +1,9 @@
 #if !defined __EXPRESSION_HPP__
 #define __EXPRESSION_HPP__
 
-#include <eigen3/unsupported/Eigen/CXX11/Tensor>
 #include <map>
 #include <string>
 #include <vector>
-
-template <typename... TArgs>
-using Tensor = Eigen::TensorFixedSize<TArgs...>;
 
 template <typename T>
 std::vector<int> make_dimension_tuple(const T& obj);
@@ -28,17 +24,19 @@ std::map<std::string, std::vector<int>> tupleToMap(
 }
 
 std::vector<std::string> string_split(const std::string& str, char delimiter);
+
 class Expression {
  private:
   std::string expr;
   class LeftExpression {
    public:
     LeftExpression() = default;
-    LeftExpression(std::string&& s) : lexpr{s}, tables{string_split(lexpr, ',')} {};
+    LeftExpression(std::string&& s)
+	: lexpr{s}, tables{string_split(lexpr, ',')} {};
     std::vector<std::string> get_tables() const { return tables; }
 
-    template <typename Tuple>
-    bool validate_expression(const Tuple& pots);
+    bool validate_expression(
+	const std::map<std::string, std::vector<int>>&) const;
 
    private:
     std::string lexpr;
@@ -49,6 +47,9 @@ class Expression {
    public:
     RightExpression() = default;
     RightExpression(std::string&& s) : rexpr{s} {}
+
+    bool validate_expression(
+	const std::map<std::string, std::vector<int>>&) const;
 
    private:
     std::string rexpr;

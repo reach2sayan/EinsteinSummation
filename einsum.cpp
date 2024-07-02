@@ -54,10 +54,7 @@ std::string remove_duplicates(const std::string& input) {
 template <typename Tuple>
 void EinsteinSummation<Tuple>::parse_and_create_object() {
   const auto& left_expression = procedure.get_left_expression();
-  std::map<std::string, std::vector<int>> dim_to_table_map =
-      tupleToMap(pots, left_expression.get_tables());
-  bool left_expression_is_valid =
-      left_expression.validate_expression(dim_to_table_map);
+  bool left_expression_is_valid = left_expression.validate_expression(pots);
 }
 
 int main() {

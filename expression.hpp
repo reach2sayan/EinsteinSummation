@@ -35,8 +35,9 @@ class Expression {
 	: lexpr{s}, tables{string_split(lexpr, ',')} {};
     std::vector<std::string> get_tables() const { return tables; }
 
-    bool validate_expression(
-	const std::map<std::string, std::vector<int>>&) const;
+    template <typename Tuple>
+    bool validate_expression(const Tuple& pots) const;
+    const std::string& get_expression_view() const { return lexpr; }
 
    private:
     std::string lexpr;
@@ -48,8 +49,8 @@ class Expression {
     RightExpression() = default;
     RightExpression(std::string&& s) : rexpr{s} {}
 
-    bool validate_expression(
-	const std::map<std::string, std::vector<int>>&) const;
+    bool validate_expression(const LeftExpression& l) const;
+    const std::string& get_expression_view() const { return rexpr; }
 
    private:
     std::string rexpr;

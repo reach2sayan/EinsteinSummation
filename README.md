@@ -1,7 +1,7 @@
 [![CMake](https://github.com/reach2sayan/Einstein_Summation/actions/workflows/action.yml/badge.svg)](https://github.com/reach2sayan/Einstein_Summation/actions/workflows/action.yml) [![C++](https://img.shields.io/badge/C++-%2300599C.svg?logo=c%2B%2B&logoColor=white)](#)
 # Einstein Summation (einsum)
 
-A C++23 implementation of the Einstein summation convention for tensor operations. This library allows for concise
+A C++26 implementation of the Einstein summation convention for tensor operations. This library allows for concise
 notation of tensor operations through labeled indices, similar to NumPy's einsum function in Python.
 
 Uses [Boost Hana](https://github.com/boostorg/hana) extensibly 

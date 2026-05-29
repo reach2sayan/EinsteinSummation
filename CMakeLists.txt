@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.25)
 project(EinsteinSummation LANGUAGES CXX)
 
 # ── Global settings ───────────────────────────────────────────────────────────
+
+# Use ccache if available to cache compiled objects across rebuilds.
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+  message(STATUS "ccache found: ${CCACHE_PROGRAM}")
+  set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -23,6 +32,23 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   list(APPEND EINSUM_WARN_FLAGS -pedantic)
 endif()
+
+# Heavy headers shared across all translation units — compiled once as a PCH.
+set(EINSUM_PCH_HEADERS
+  <algorithm>
+  <iterator>
+  <ranges>
+  <string_view>
+  <tuple>
+  <type_traits>
+  <vector>
+  <boost/hana.hpp>
+  <experimental/mdspan>
+)
+
+function(einsum_target_pch target)
+  target_precompile_headers(${target} PRIVATE ${EINSUM_PCH_HEADERS})
+endfunction()
 
 function(einsum_target_compile_options target)
   if(MSVC)
@@ -109,11 +135,13 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/main.cpp)
   add_executable(main main.cpp)
   target_link_libraries(main PRIVATE einsum)
   einsum_target_compile_options(main)
+  einsum_target_pch(main)
 endif()
 
 add_executable(einsum_benchmark benchmark/benchmark.cpp)
 target_link_libraries(einsum_benchmark PRIVATE einsum benchmark::benchmark)
 einsum_target_compile_options(einsum_benchmark)
+einsum_target_pch(einsum_benchmark)
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 enable_testing()
@@ -127,6 +155,7 @@ if(Boost_FOUND)
   # Mark Boost includes as SYSTEM to suppress warnings from Boost headers.
   target_include_directories(einsum_tests SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
   einsum_target_compile_options(einsum_tests)
+  einsum_target_pch(einsum_tests)
   add_test(NAME einsum_tests COMMAND einsum_tests)
 else()
   message(STATUS "Boost not found — skipping Boost.Test suite (tests/tests.cpp)")

@@ -45,9 +45,9 @@ consteval auto parse_input(auto &&input_string) {
         rest, [](auto &&c) { return c == boost::hana::char_c<'-'>; });
     auto rs = boost::hana::take_front(rest, *pos_arrow);
 
-    // trim right input
+    // skip "->" to get output labels
     auto final =
-        boost::hana::drop_front(rest, *pos_comma + boost::hana::size_c<2>);
+        boost::hana::drop_front(rest, *pos_arrow + boost::hana::size_c<2>);
 
     return std::make_tuple(tuple_to_string(ls), tuple_to_string(rs),
                            tuple_to_string(final));
@@ -78,6 +78,62 @@ consteval auto make_label_from_inputs(auto input_string) {
     auto r = boost::hana::at_c<1>(lrout);
     auto out = boost::hana::at_c<2>(lrout);
     return make_labels(std::move(l), std::move(r), std::move(out));
+  }
+}
+
+// ── Single-operand parsing ────────────────────────────────────────────────────
+
+// Parses "Ls->Out" (no comma) into (Ls_str, Out_str).
+consteval auto parse_unary_input(auto &&input_string) {
+  auto [l, out] = boost::hana::unpack(input_string, [](auto &&...chars) {
+    auto input = boost::hana::make_tuple(chars...);
+
+    constexpr auto pos_arrow = boost::hana::index_if(
+        input, [](auto &&c) { return c == boost::hana::char_c<'-'>; });
+    auto ls = boost::hana::take_front(input, *pos_arrow);
+    // skip "->"
+    auto final =
+        boost::hana::drop_front(input, *pos_arrow + boost::hana::size_c<2>);
+
+    return std::make_tuple(tuple_to_string(ls), tuple_to_string(final));
+  });
+  return boost::hana::make_tuple(std::move(l), std::move(out));
+}
+
+// Auto-infer output for single-operand: keep only labels that appear exactly
+// once in input (numpy semantics: repeated labels are contracted/traced out).
+//   "ij"  -> "ij->ij"
+//   "ii"  -> "ii->"
+//   "ijk" -> "ijk->ijk"
+consteval auto make_uni_label_from_inputs(auto input_string) {
+  if constexpr (!boost::hana::contains(input_string,
+                                       boost::hana::char_c<'-'>)) {
+    auto input = boost::hana::unpack(
+        input_string, [](auto... c) { return boost::hana::make_tuple(c...); });
+
+    // For each unique label, count its occurrences in input.
+    // Keep only those that appear exactly once.
+    auto non_repeated = boost::hana::filter(stable_unique(input), [&](auto x) {
+      auto count = boost::hana::fold_left(
+          input, boost::hana::size_c<0>, [&](auto acc, auto c) {
+            return boost::hana::if_(c == x,
+                                    acc + boost::hana::size_c<1>,
+                                    acc);
+          });
+      return count == boost::hana::size_c<1>;
+    });
+
+    auto arrow_tail = boost::hana::concat(
+        boost::hana::make_tuple(boost::hana::char_c<'-'>,
+                                boost::hana::char_c<'>'>),
+        non_repeated);
+    auto new_str = boost::hana::concat(input, arrow_tail);
+    return make_uni_label_from_inputs(tuple_to_string(new_str));
+  } else {
+    auto lout = parse_unary_input(input_string);
+    auto l    = boost::hana::at_c<0>(lout);
+    auto out  = boost::hana::at_c<1>(lout);
+    return make_uni_labels(std::move(l), std::move(out));
   }
 }
 

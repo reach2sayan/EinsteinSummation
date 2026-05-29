@@ -43,4 +43,32 @@ inline constexpr bool is_matrices_v<
 template <typename M>
 concept CMatrices = is_matrices_v<std::remove_cvref_t<M>>;
 
+// ── Single-operand matrices ───────────────────────────────────────────────────
+
+template <typename T, typename LExt> struct UniMatrices;
+
+template <typename T, std::size_t... Ls>
+struct UniMatrices<T, std::index_sequence<Ls...>> {
+  constexpr static auto left_extents =
+      boost::hana::make_tuple(boost::hana::size_c<Ls>...);
+
+  using value_type = T;
+  using l_matrix_t = std::mdspan<T, std::extents<std::size_t, Ls...>>;
+
+  l_matrix_t left;
+  constexpr explicit UniMatrices(auto &&L_) noexcept : left{FWD(L_)} {}
+};
+
+template <typename T, std::size_t... Ls>
+UniMatrices(std::mdspan<T, std::extents<std::size_t, Ls...>>)
+    -> UniMatrices<T, std::index_sequence<Ls...>>;
+
+template <typename> inline constexpr bool is_uni_matrices_v = false;
+template <typename T, std::size_t... Ls>
+inline constexpr bool
+    is_uni_matrices_v<UniMatrices<T, std::index_sequence<Ls...>>> = true;
+
+template <typename M>
+concept CUniMatrices = is_uni_matrices_v<std::remove_cvref_t<M>>;
+
 #endif // EINSTEIN_SUMMATION2_MATRICES_HPP

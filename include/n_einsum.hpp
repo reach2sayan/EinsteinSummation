@@ -125,14 +125,16 @@ constexpr void NEinsum<Labels, Matrices>::eval() noexcept {
   }
 }
 
-#define make_einsum_n(name, inputstring, ...)                                  \
+#define make_einsum(name, inputstring, ...)                                    \
   auto name = std::apply(                                                      \
       [](auto... _spans) {                                                     \
-        auto m = make_n_matrices(_spans...);                                   \
+        auto m = einsum_detail::make_n_matrices(_spans...);                    \
         auto input = BOOST_HANA_STRING(inputstring);                           \
-        auto labels = make_n_label_from_inputs(input);                         \
+        auto labels = einsum_detail::make_n_label_from_inputs(input);          \
         return NEinsum{labels, m};                                             \
       },                                                                       \
       std::make_tuple(__VA_ARGS__));
+
+#define make_einsum_n make_einsum
 
 #endif // EINSTEIN_SUMMATION2_N_EINSUM_HPP

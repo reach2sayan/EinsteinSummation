@@ -2,9 +2,8 @@
 // Created by sayan on 9/20/25.
 //
 
-#include "einsum.hpp"
+#include "einsum_single.hpp"
 #include <benchmark/benchmark.h>
-#include <experimental/mdspan>
 
 #include <algorithm>
 #include <iostream>

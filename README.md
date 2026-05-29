@@ -17,14 +17,41 @@ A C++23 header-only implementation of the Einstein summation convention for tens
 ## Requirements
 
 - C++23 compiler — tested with GCC 13 and Clang 18
-- CMake ≥ 3.14
+- CMake ≥ 3.25
 - Boost (headers only — Hana)
 - [`kokkos/mdspan`](https://github.com/kokkos/mdspan) (fetched automatically via CMake FetchContent)
 
+## Building
+
+```bash
+cmake -B build
+cmake --build build
+```
+
+[`ccache`](https://ccache.dev/) is detected automatically and used as a compiler launcher if present, making incremental rebuilds significantly faster. Install it with `apt install ccache` / `brew install ccache`.
+
+Precompiled headers for the heavy dependencies (`boost/hana.hpp`, `experimental/mdspan`) are enabled on all targets automatically.
+
+### Compile-time profiling
+
+Compile-time tracing is **on by default**:
+
+- **Clang** (`-ftime-trace`): produces a `<source>.json` flame graph next to each object file. Open it at `chrome://tracing` or drag it into [speedscope.app](https://www.speedscope.app) to see template instantiation costs.
+- **GCC** (`-ftime-report`): prints a per-phase timing table to stderr after each translation unit.
+
+Disable with:
+
+```bash
+cmake -B build -DEINSUM_TRACE=OFF
+```
+
 ## Usage
 
-Include `einsum.hpp` / `unary_einsum.hpp` / `n_einsum.hpp` and use the corresponding macro, then call `eval()`.  
-`get_result_span()` returns a typed `std::mdspan` owned by the einsum object — keep the object alive while using the span.
+Include `einsum_single.hpp` to get all three operand modes in one include, or include individual headers as needed. Call `eval()` to run the contraction; `get_result_span()` returns a typed `std::mdspan` owned by the einsum object — keep the object alive while using the span.
+
+```cpp
+#include "einsum_single.hpp"  // includes einsum.hpp, unary_einsum.hpp, n_einsum.hpp
+```
 
 ### Matrix multiplication
 
@@ -77,10 +104,8 @@ ein.eval();
 ### N-operand contractions (3 or more tensors)
 
 ```cpp
-#include "n_einsum.hpp"
-
 // 3-operand matrix chain: A(2×3) × B(3×4) × C(4×2) → result(2×2)
-make_einsum_n(ein, "ij,jk,kl->il", mdA, mdB, mdC);
+make_einsum(ein, "ij,jk,kl->il", mdA, mdB, mdC);
 ein.eval();
 auto res = ein.get_result_span();
 ```
@@ -88,8 +113,6 @@ auto res = ein.get_result_span();
 ### Single-operand operations
 
 ```cpp
-#include "unary_einsum.hpp"
-
 // Transpose: result[j,i] = A[i,j]
 make_einsum_unary(ein, "ij->ji", mdA);
 ein.eval();

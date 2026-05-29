@@ -6,7 +6,6 @@
 #define EINSTEIN_SUMMATION2_EINSUM_2_HPP
 #pragma once
 #include "einsum_helpers.hpp"
-#include "input_handler.hpp"
 #include "labels.hpp"
 #include "matrices.hpp"
 #include "printers.hpp"
@@ -43,7 +42,6 @@ public:
   constexpr static auto collapsed_iterator_label_map =
       make_output_iterator_label_map(collapsed_index_list,
                                      DECAY(Labels)::collapsed_labels);
-
 
   constexpr Einsum(std::same_as<Labels> auto &&,
                    std::same_as<Matrices> auto &&matrices) noexcept
@@ -89,23 +87,25 @@ constexpr void Einsum<Labels, Matrices>::eval() noexcept {
     auto get_index = [&](auto &&key) {
       return boost::hana::at_key(index_map, key);
     };
-    auto lindices = boost::hana::transform(DECAY(Labels)::left_labels, get_index);
-    auto rindices = boost::hana::transform(DECAY(Labels)::right_labels, get_index);
-    auto out_indices = boost::hana::transform(DECAY(Labels)::out_labels, get_index);
+    auto lindices =
+        boost::hana::transform(DECAY(Labels)::left_labels, get_index);
+    auto rindices =
+        boost::hana::transform(DECAY(Labels)::right_labels, get_index);
+    auto out_indices =
+        boost::hana::transform(DECAY(Labels)::out_labels, get_index);
     PRINT_ITERATION(lindices, rindices, out_indices);
     assign_values(lindices, rindices, out_indices);
   };
 
   if constexpr (boost::hana::size(DECAY(Labels)::collapsed_labels) == 0) {
     // no contraction: element-wise or outer product
-    boost::hana::for_each(output_iterator_label_map, [&](auto out_map) {
-      accumulate(out_map);
-    });
+    boost::hana::for_each(output_iterator_label_map,
+                          [&](auto out_map) { accumulate(out_map); });
   } else if constexpr (boost::hana::size(DECAY(Labels)::out_labels) == 0) {
     // scalar output (e.g. "i,i->" dot product): iterate only collapsed indices
-    boost::hana::for_each(collapsed_iterator_label_map, [&](auto collapsed_map) {
-      accumulate(collapsed_map);
-    });
+    boost::hana::for_each(
+        collapsed_iterator_label_map,
+        [&](auto collapsed_map) { accumulate(collapsed_map); });
   } else {
     // general contraction: outer = output indices, inner = collapsed indices
     boost::hana::for_each(output_iterator_label_map, [&](auto out_map) {
@@ -116,13 +116,5 @@ constexpr void Einsum<Labels, Matrices>::eval() noexcept {
     });
   }
 }
-
-#define make_einsum(name, inputstring, spanA, spanB)                           \
-  auto name = [_lhs = spanA, _rhs = spanB]() {                                \
-    Matrices m{_lhs, _rhs};                                                    \
-    auto input = BOOST_HANA_STRING(inputstring);                               \
-    auto labels = make_label_from_inputs(input);                               \
-    return Einsum{labels, m};                                                  \
-  }();
 
 #endif // EINSTEIN_SUMMATION2_EINSUM_2_HPP

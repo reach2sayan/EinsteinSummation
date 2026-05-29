@@ -112,7 +112,7 @@ constexpr void UnaryEinsum<ULabels, UMatrices>::eval() noexcept {
   auto name = [_span = spanA]() {                                              \
     UniMatrices m{_span};                                                      \
     auto input = BOOST_HANA_STRING(inputstring);                               \
-    auto labels = make_uni_label_from_inputs(input);                           \
+    auto labels = einsum_detail::make_uni_label_from_inputs(input);            \
     return UnaryEinsum{labels, m};                                             \
   }();
 

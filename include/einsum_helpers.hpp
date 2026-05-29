@@ -40,13 +40,12 @@ template <typename Keys, typename Values>
 consteval auto make_unique_map_from_sequences(Keys keys, Values values) {
   return boost::hana::fold_left(
       boost::hana::zip(std::move(keys), std::move(values)),
-      boost::hana::make_map(),
-      [](auto acc, auto pair) {
+      boost::hana::make_map(), [](auto acc, auto pair) {
         return boost::hana::if_(
-            boost::hana::contains(acc, boost::hana::at_c<0>(pair)),
-            acc,
-            boost::hana::insert(acc, boost::hana::make_pair(
-                boost::hana::at_c<0>(pair), boost::hana::at_c<1>(pair))));
+            boost::hana::contains(acc, boost::hana::at_c<0>(pair)), acc,
+            boost::hana::insert(
+                acc, boost::hana::make_pair(boost::hana::at_c<0>(pair),
+                                            boost::hana::at_c<1>(pair))));
       });
 }
 
@@ -86,9 +85,9 @@ consteval auto make_output_iterator_label_map(ValueList &&iterator_indices,
 }
 
 template <typename Dims> consteval auto get_extents(Dims &&dims) {
-  return boost::hana::unpack(
-      std::forward<Dims>(dims),
-      [](auto... d) { return std::extents<std::size_t, d...>(); });
+  return boost::hana::unpack(std::forward<Dims>(dims), [](auto... d) {
+    return std::extents<std::size_t, d...>();
+  });
 }
 
 } // namespace einsum_detail

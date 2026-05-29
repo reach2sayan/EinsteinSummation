@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
-project(Einstein_Summation LANGUAGES CXX)
+project(EinsteinSummation LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# ── Compiler flags ────────────────────────────────────────────────────────────
 if(MSVC)
     if(POLICY CMP0141)
         cmake_policy(SET CMP0141 NEW)
@@ -25,9 +26,18 @@ else()
     endif()
 endif()
 
-find_package(Boost REQUIRED)
-
+# ── Dependencies ──────────────────────────────────────────────────────────────
 include(FetchContent)
+
+# Boost.Hana — header-only, standalone (no other Boost headers needed)
+set(BOOST_HANA_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BOOST_HANA_ENABLE_DOCS    OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    hana
+    GIT_REPOSITORY https://github.com/boostorg/hana.git
+    GIT_TAG        v1.7.0
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
 
 FetchContent_Declare(
     mdspan
@@ -50,9 +60,9 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 
-FetchContent_MakeAvailable(mdspan googletest benchmark)
+FetchContent_MakeAvailable(hana mdspan googletest benchmark)
 
-
+# ── Library ───────────────────────────────────────────────────────────────────
 add_library(einsum INTERFACE
     ${CMAKE_SOURCE_DIR}/include/einsum.hpp
     ${CMAKE_SOURCE_DIR}/include/input_handler.hpp
@@ -61,20 +71,32 @@ add_library(einsum INTERFACE
     ${CMAKE_SOURCE_DIR}/include/printers.hpp
 )
 target_include_directories(einsum INTERFACE
-    ${Boost_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/include
+    ${hana_SOURCE_DIR}/include
     ${mdspan_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 # ── Executables ───────────────────────────────────────────────────────────────
 add_executable(main main.cpp)
 target_link_libraries(main PRIVATE einsum)
 
-add_executable(tests tests/tests.cpp)
-target_link_libraries(tests PRIVATE einsum gtest_main)
-
 add_executable(measure benchmark/benchmark.cpp)
 target_link_libraries(measure PRIVATE einsum benchmark::benchmark)
 
+# tests/tests.cpp uses boost/test/included/unit_test.hpp (header-only Boost.Test).
+# That header pulls in other Boost libs not bundled in boostorg/hana, so a
+# system Boost install is still required for this target only.
+find_package(Boost QUIET)
+if(Boost_FOUND)
+    add_executable(einsum_tests tests/tests.cpp)
+    target_link_libraries(einsum_tests PRIVATE einsum)
+    target_include_directories(einsum_tests PRIVATE ${Boost_INCLUDE_DIRS})
+else()
+    message(STATUS "Boost not found on system -- skipping Boost.Test suite (tests/tests.cpp)")
+endif()
+
+# ── Testing ───────────────────────────────────────────────────────────────────
 enable_testing()
-add_test(NAME tests COMMAND tests)
+if(Boost_FOUND)
+    add_test(NAME einsum_tests COMMAND einsum_tests)
+endif()

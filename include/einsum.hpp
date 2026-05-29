@@ -116,7 +116,7 @@ public:
 
 private:
   constexpr static auto output_size = boost::hana::fold_left(
-      out_dims, 1, [](auto x, auto y) { return x * y.value; });
+      out_dims, std::size_t{1}, [](auto x, auto y) { return x * y.value; });
   std::array<value_type, output_size> result;
   DECAY(Matrices)::l_matrix_t left;
   DECAY(Matrices)::r_matrix_t right;

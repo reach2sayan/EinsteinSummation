@@ -81,8 +81,6 @@ consteval auto make_label_from_inputs(auto input_string) {
   }
 }
 
-// ── Single-operand parsing ────────────────────────────────────────────────────
-
 // Parses "Ls->Out" (no comma) into (Ls_str, Out_str).
 consteval auto parse_unary_input(auto &&input_string) {
   auto [l, out] = boost::hana::unpack(input_string, [](auto &&...chars) {
@@ -134,6 +132,74 @@ consteval auto make_uni_label_from_inputs(auto input_string) {
     auto l    = boost::hana::at_c<0>(lout);
     auto out  = boost::hana::at_c<1>(lout);
     return make_uni_labels(std::move(l), std::move(out));
+  }
+}
+
+// ── N-operand parsing ─────────────────────────────────────────────────────────
+
+// Parses "A,B,...,Z->Out" into (tuple_of_input_strings, output_string).
+// Works for any number of comma-separated inputs.
+consteval auto parse_n_input(auto input_string) {
+  auto chars = boost::hana::unpack(input_string, boost::hana::make_tuple);
+
+  // Find the "->" arrow position.
+  constexpr auto pos_arrow = boost::hana::index_if(
+      chars, [](auto c) { return c == boost::hana::char_c<'-'>; });
+  auto prefix      = boost::hana::take_front(chars, *pos_arrow);
+  auto output_chars =
+      boost::hana::drop_front(chars, *pos_arrow + boost::hana::size_c<2>);
+
+  // Split prefix on commas: fold accumulates (segments_tuple, current_segment).
+  auto fold_result = boost::hana::fold_left(
+      prefix,
+      boost::hana::make_pair(boost::hana::make_tuple(), boost::hana::make_tuple()),
+      [](auto acc, auto c) {
+        auto segs = boost::hana::first(acc);
+        auto cur  = boost::hana::second(acc);
+        return boost::hana::if_(
+            c == boost::hana::char_c<','>,
+            boost::hana::make_pair(
+                boost::hana::append(segs, tuple_to_string(cur)),
+                boost::hana::make_tuple()),
+            boost::hana::make_pair(segs, boost::hana::append(cur, c)));
+      });
+
+  auto all_input_strings =
+      boost::hana::append(boost::hana::first(fold_result),
+                          tuple_to_string(boost::hana::second(fold_result)));
+  auto output_string = tuple_to_string(output_chars);
+  return boost::hana::make_pair(all_input_strings, output_string);
+}
+
+// Build NLabels from parsed input strings via pack expansion.
+consteval auto make_n_label_from_inputs(auto input_string) {
+  if constexpr (!boost::hana::contains(input_string, boost::hana::char_c<'-'>)) {
+    // Auto-infer output: labels appearing exactly once across all inputs.
+    auto chars = boost::hana::unpack(input_string, boost::hana::make_tuple);
+    auto no_comma = boost::hana::remove_if(
+        chars, [](auto c) { return c == boost::hana::char_c<','>; });
+    auto non_repeated =
+        boost::hana::filter(stable_unique(no_comma), [&](auto x) {
+          auto count = boost::hana::fold_left(
+              no_comma, boost::hana::size_c<0>, [&](auto acc, auto c) {
+                return boost::hana::if_(c == x, acc + boost::hana::size_c<1>,
+                                        acc);
+              });
+          return count == boost::hana::size_c<1>;
+        });
+    auto arrow_tail = boost::hana::concat(
+        boost::hana::make_tuple(boost::hana::char_c<'-'>,
+                                boost::hana::char_c<'>'>),
+        non_repeated);
+    return make_n_label_from_inputs(
+        tuple_to_string(boost::hana::concat(chars, arrow_tail)));
+  } else {
+    auto parsed        = parse_n_input(input_string);
+    auto input_strings = boost::hana::first(parsed);
+    auto output_string = boost::hana::second(parsed);
+    return boost::hana::unpack(input_strings, [&](auto... inp) {
+      return make_n_labels(output_string, inp...);
+    });
   }
 }
 

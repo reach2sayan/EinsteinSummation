@@ -2,9 +2,10 @@
 // Created by sayan on 9/20/25.
 //
 #include "einsum.hpp"
-#include "unary_einsum.hpp"
 #include "labels.hpp"
 #include "matrices.hpp"
+#include "n_einsum.hpp"
+#include "unary_einsum.hpp"
 #include <algorithm>
 #include <list>
 #include <ranges>
@@ -13,14 +14,6 @@
 #define BOOST_TEST_MODULE EinsumTestSuite
 #include <boost/test/included/unit_test.hpp>
 
-// Helper: wrap a get_result() array in a const mdspan using the einsum's
-// own static extents, so multi-index [i,j,...] keeps working.
-#define RESULT_VIEW(ein, name)                                                 \
-  const auto &name##_data = ein.get_result();                                 \
-  std::mdspan<const int, std::remove_const_t<decltype(decltype(ein)::extents)>> name { \
-    name##_data.data()                                                         \
-  }
-
 BOOST_AUTO_TEST_CASE(EinsumTest_2DMatrix1) {
   std::vector A{0, 1, 2, 3, 4, 5};
   std::vector B{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
@@ -28,7 +21,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_2DMatrix1) {
   std::mdspan<int, std::extents<size_t, 3, 4>> mdB{B.data()};
   make_einsum(ein, "ij,jk->ik", mdA, mdB);
   ein.eval();
-  RESULT_VIEW(ein, res_einsum);
+  auto res_einsum = ein.get_result_span();
 
   std::vector res{0, 0, 0, 0, 0, 0, 0, 0};
   std::mdspan<int, std::extents<size_t, 2, 4>> mdres{res.data()};
@@ -55,7 +48,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_2DMatrix2) {
 
   make_einsum(a, "ij,jk->ik", mdA, mdB);
   a.eval();
-  RESULT_VIEW(a, res_einsum);
+  auto res_einsum = a.get_result_span();
 
   std::vector res{0, 0, 0, 0};
   std::mdspan<int, std::extents<size_t, 2, 2>> mdres{res.data()};
@@ -83,7 +76,8 @@ BOOST_AUTO_TEST_CASE(EinsumTest_MatrixMul) {
 
   make_einsum(ein, "ij,jk->ik", mdmat1, mdmat2);
   ein.eval();
-  auto res = ein.get_result_span();  // exercises get_result_span() on binary path
+  auto res =
+      ein.get_result_span(); // exercises get_result_span() on binary path
 
   std::vector res_calc{130, 130, 130, 130, 230, 230, 230, 230,
                        330, 330, 330, 330, 430, 430, 430, 430};
@@ -104,7 +98,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_HadamardProduct) {
 
   make_einsum(ein, "ij,ij->ij", mdmat1, mdmat2);
   ein.eval();
-  RESULT_VIEW(ein, res);
+  auto res = ein.get_result_span();
 
   std::vector res_calc{11, 12, 13, 14,  42,  44,  46,  48,
                        93, 96, 99, 102, 164, 168, 172, 176};
@@ -127,7 +121,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_HadamardProduct2) {
 
   make_einsum(ein, "ij,ij->ij", mdA, mdB);
   ein.eval();
-  RESULT_VIEW(ein, result);
+  auto result = ein.get_result_span();
 
   for (auto i = 0; i < 2; i++) {
     for (auto j = 0; j < 2; j++) {
@@ -144,7 +138,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_MatrixTranspose) {
 
   make_einsum(a, "ij,ji", mdA, mdB);
   a.eval();
-  RESULT_VIEW(a, res);
+  auto res = a.get_result_span();
 
   // "ij,ji->ij": element-wise product of A with transpose(B)
   // result[i,j] = A[i,j] * B[j,i]
@@ -163,7 +157,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_ElementWiseSquaring) {
 
   make_einsum(ein, "ij,ij->ij", mdmat, mdmat);
   ein.eval();
-  RESULT_VIEW(ein, res);
+  auto res = ein.get_result_span();
 
   std::vector expected{1, 1, 1, 1, 4, 4, 4, 4, 9, 9, 9, 9, 16, 16, 16, 16};
   std::mdspan<int, std::extents<size_t, 4, 4>> mdexpected{expected.data()};
@@ -194,7 +188,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_OuterProduct) {
   std::mdspan<int, std::extents<size_t, 2>> mdB{B.data()};
   make_einsum(ein, "i,j->ij", mdA, mdB);
   ein.eval();
-  RESULT_VIEW(ein, res);
+  auto res = ein.get_result_span();
   // res[i,j] = A[i] * B[j]
   std::vector expected{4, 5, 8, 10, 12, 15};
   std::mdspan<int, std::extents<size_t, 3, 2>> mdexp{expected.data()};
@@ -240,7 +234,8 @@ BOOST_AUTO_TEST_CASE(EinsumTest_EvalIdempotent) {
   auto first = ein.get_result();
   ein.eval();
   BOOST_CHECK_EQUAL_COLLECTIONS(first.begin(), first.end(),
-                                ein.get_result().begin(), ein.get_result().end());
+                                ein.get_result().begin(),
+                                ein.get_result().end());
 }
 
 BOOST_AUTO_TEST_CASE(EinsumTest_AutoInferenceMatchesExplicit) {
@@ -253,11 +248,13 @@ BOOST_AUTO_TEST_CASE(EinsumTest_AutoInferenceMatchesExplicit) {
   make_einsum(ein_explicit, "ij,ji->ij", mdA, mdB);
   ein_auto.eval();
   ein_explicit.eval();
-  BOOST_CHECK_EQUAL_COLLECTIONS(ein_auto.get_result().begin(), ein_auto.get_result().end(),
-                                ein_explicit.get_result().begin(), ein_explicit.get_result().end());
+  BOOST_CHECK_EQUAL_COLLECTIONS(
+      ein_auto.get_result().begin(), ein_auto.get_result().end(),
+      ein_explicit.get_result().begin(), ein_explicit.get_result().end());
 }
 
-// ── Unary einsum tests ────────────────────────────────────────────────────────
+// ── Unary einsum tests
+// ────────────────────────────────────────────────────────
 
 BOOST_AUTO_TEST_CASE(EinsumTest_UnaryTranspose) {
   // "ij->ji": result[j,i] == A[i,j]
@@ -276,9 +273,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_UnaryTranspose) {
 
 BOOST_AUTO_TEST_CASE(EinsumTest_UnaryTrace) {
   // "ii->": sum of diagonal of a 3×3 matrix
-  std::vector A{1, 0, 0,
-                0, 2, 0,
-                0, 0, 3};
+  std::vector A{1, 0, 0, 0, 2, 0, 0, 0, 3};
   std::mdspan<int, std::extents<size_t, 3, 3>> mdA{A.data()};
   make_einsum_unary(ein, "ii->", mdA);
   ein.eval();
@@ -288,9 +283,7 @@ BOOST_AUTO_TEST_CASE(EinsumTest_UnaryTrace) {
 
 BOOST_AUTO_TEST_CASE(EinsumTest_UnaryDiagonal) {
   // "ii->i": extract diagonal of a 3×3 matrix
-  std::vector A{1, 2, 3,
-                4, 5, 6,
-                7, 8, 9};
+  std::vector A{1, 2, 3, 4, 5, 6, 7, 8, 9};
   std::mdspan<int, std::extents<size_t, 3, 3>> mdA{A.data()};
   make_einsum_unary(ein, "ii->i", mdA);
   ein.eval();
@@ -319,22 +312,89 @@ BOOST_AUTO_TEST_CASE(EinsumTest_UnaryAutoInferIdentity) {
   // "ij" auto-infers to "ij->ij" for a single operand
   std::vector A{1, 2, 3, 4};
   std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
-  make_einsum_unary(ein_auto,     "ij",    mdA);
+  make_einsum_unary(ein_auto, "ij", mdA);
   make_einsum_unary(ein_explicit, "ij->ij", mdA);
   ein_auto.eval();
   ein_explicit.eval();
-  BOOST_CHECK_EQUAL_COLLECTIONS(ein_auto.get_result().begin(), ein_auto.get_result().end(),
-                                ein_explicit.get_result().begin(), ein_explicit.get_result().end());
+  BOOST_CHECK_EQUAL_COLLECTIONS(
+      ein_auto.get_result().begin(), ein_auto.get_result().end(),
+      ein_explicit.get_result().begin(), ein_explicit.get_result().end());
 }
 
 BOOST_AUTO_TEST_CASE(EinsumTest_UnaryAutoInferTrace) {
   // "ii" auto-infers to "ii->" (repeated label → trace)
   std::vector A{1, 0, 0, 2};
   std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
-  make_einsum_unary(ein_auto,     "ii",   mdA);
+  make_einsum_unary(ein_auto, "ii", mdA);
   make_einsum_unary(ein_explicit, "ii->", mdA);
   ein_auto.eval();
   ein_explicit.eval();
-  BOOST_CHECK_EQUAL_COLLECTIONS(ein_auto.get_result().begin(), ein_auto.get_result().end(),
-                                ein_explicit.get_result().begin(), ein_explicit.get_result().end());
+  BOOST_CHECK_EQUAL_COLLECTIONS(
+      ein_auto.get_result().begin(), ein_auto.get_result().end(),
+      ein_explicit.get_result().begin(), ein_explicit.get_result().end());
+}
+
+BOOST_AUTO_TEST_CASE(EinsumTest_NaryMatMulChain) {
+  // "ij,jk,kl->il": 3-operand matrix chain A(2×3) × B(3×4) × C(4×2) → R(2×2)
+  std::vector A{1, 2, 3, 4, 5, 6};                   // 2×3
+  std::vector B{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}; // 3×4 (identity-like)
+  std::vector C{1, 0, 0, 1, 0, 0, 1, 0}; // 4×2 (first two rows are identity)
+
+  std::mdspan<int, std::extents<size_t, 2, 3>> mdA{A.data()};
+  std::mdspan<int, std::extents<size_t, 3, 4>> mdB{B.data()};
+  std::mdspan<int, std::extents<size_t, 4, 2>> mdC{C.data()};
+
+  make_einsum_n(ein, "ij,jk,kl->il", mdA, mdB, mdC);
+  ein.eval();
+  auto res = ein.get_result_span();
+
+  // Manually: R[i,l] = sum_j sum_k A[i,j]*B[j,k]*C[k,l]
+  // B is identity in first 3 cols, so A×B gives A with a zero 4th column.
+  // C picks columns 0 and 1 from the intermediate, giving A's first two
+  // columns: R = [[1,2],[4,5]]  (A[:,0:2])... let's compute directly.
+  std::vector expected(4, 0);
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdexp{expected.data()};
+  for (auto i = 0; i < 2; ++i)
+    for (auto l = 0; l < 2; ++l) {
+      mdexp[i, l] = 0;
+      for (auto j = 0; j < 3; ++j)
+        for (auto k = 0; k < 4; ++k)
+          mdexp[i, l] += mdA[i, j] * mdB[j, k] * mdC[k, l];
+    }
+  for (auto i = 0; i < 2; ++i)
+    for (auto l = 0; l < 2; ++l)
+      BOOST_CHECK_EQUAL((res[i, l]), (mdexp[i, l]));
+}
+
+BOOST_AUTO_TEST_CASE(EinsumTest_NaryBatchedDot) {
+  // "bi,ij,bj->": batched bilinear form — result is a scalar
+  // R = sum_b sum_i sum_j v[b,i] * M[i,j] * v[b,j]
+  std::vector v{1, 0, 0, 1}; // 2 batches × 2 features
+  std::vector M{1, 0, 0, 1}; // 2×2 identity matrix
+
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdV{v.data()};
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdM{M.data()};
+
+  make_einsum_n(ein, "bi,ij,bj->", mdV, mdM, mdV);
+  ein.eval();
+  // With identity M: R = sum_b sum_i v[b,i]*v[b,i] = |v[0]|^2 + |v[1]|^2 = 1+1
+  // = 2
+  BOOST_CHECK_EQUAL(ein.get_result()[0], 2);
+}
+
+BOOST_AUTO_TEST_CASE(EinsumTest_NaryAutoInfer) {
+  // "ij,jk,kl" auto-infers to "ij,jk,kl->il" (j and k are repeated → summed)
+  std::vector A{1, 2, 3, 4};
+  std::vector B{1, 0, 0, 1};
+  std::vector C{1, 2, 3, 4};
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdB{B.data()};
+  std::mdspan<int, std::extents<size_t, 2, 2>> mdC{C.data()};
+  make_einsum_n(ein_auto, "ij,jk,kl", mdA, mdB, mdC);
+  make_einsum_n(ein_explicit, "ij,jk,kl->il", mdA, mdB, mdC);
+  ein_auto.eval();
+  ein_explicit.eval();
+  BOOST_CHECK_EQUAL_COLLECTIONS(
+      ein_auto.get_result().begin(), ein_auto.get_result().end(),
+      ein_explicit.get_result().begin(), ein_explicit.get_result().end());
 }

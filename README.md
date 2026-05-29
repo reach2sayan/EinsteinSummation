@@ -10,6 +10,9 @@ A C++23 header-only implementation of the Einstein summation convention for tens
 - Dimension compatibility checked at compile time via `static_assert`
 - Automatic output shape inference when the `->` clause is omitted
 - Zero runtime overhead for index bookkeeping — all iteration spaces are `constexpr`
+- Single-operand operations: transpose, trace, diagonal extraction, axis permutation
+- N-operand contractions: chain `"ij,jk,kl->il"` with 3 or more tensors
+- `get_result_span()` returns a typed `std::mdspan` for direct multi-dimensional access
 
 ## Requirements
 
@@ -20,8 +23,8 @@ A C++23 header-only implementation of the Einstein summation convention for tens
 
 ## Usage
 
-Include `einsum.hpp` and use the `make_einsum` macro to declare an operation, then call `eval()`.  
-`get_result()` returns a `const std::array<T, N>&` owned by the einsum object — keep the object alive while using the reference.
+Include `einsum.hpp` / `unary_einsum.hpp` / `n_einsum.hpp` and use the corresponding macro, then call `eval()`.  
+`get_result_span()` returns a typed `std::mdspan` owned by the einsum object — keep the object alive while using the span.
 
 ### Matrix multiplication
 
@@ -34,7 +37,7 @@ std::mdspan<int, std::extents<size_t, 3, 4>> mdB{B.data()};
 
 make_einsum(ein, "ij,jk->ik", mdA, mdB);
 ein.eval();
-const auto& result = ein.get_result(); // const std::array<int, 8>&
+auto res = ein.get_result_span(); // std::mdspan<const int, extents<size_t, 2, 4>>
 ```
 
 ### Hadamard product (element-wise multiplication)
@@ -48,18 +51,7 @@ std::mdspan<int, std::extents<size_t, 2, 2>> mdB{B.data()};
 
 make_einsum(ein, "ij,ij->ij", mdA, mdB);
 ein.eval();
-const auto& result = ein.get_result(); // [5, 12, 21, 32]
-```
-
-### Element-wise squaring
-
-```cpp
-std::vector mat{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
-std::mdspan<int, std::extents<size_t, 4, 4>> mdmat{mat.data()};
-
-make_einsum(ein, "ij,ij->ij", mdmat, mdmat);
-ein.eval();
-const auto& result = ein.get_result(); // [1,1,1,1, 4,4,4,4, 9,9,9,9, 16,16,16,16]
+auto res = ein.get_result_span(); // [5, 12, 21, 32]
 ```
 
 ### Tensor contraction
@@ -82,21 +74,41 @@ make_einsum(ein, "ij,jk", mdA, mdB); // equivalent to "ij,jk->ik"
 ein.eval();
 ```
 
-### Element-wise product with transposed operand
+### N-operand contractions (3 or more tensors)
 
 ```cpp
-std::vector A{1, 2, 3, 4};
-std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
-std::mdspan<int, std::extents<size_t, 2, 2>> mdB{A.data()};
+#include "n_einsum.hpp"
 
-// result[i,j] = A[i,j] * B[j,i]
-make_einsum(ein, "ij,ji->ij", mdA, mdB);
+// 3-operand matrix chain: A(2×3) × B(3×4) × C(4×2) → result(2×2)
+make_einsum_n(ein, "ij,jk,kl->il", mdA, mdB, mdC);
 ein.eval();
-const auto& result = ein.get_result(); // [1, 6, 6, 16]
+auto res = ein.get_result_span();
+```
+
+### Single-operand operations
+
+```cpp
+#include "unary_einsum.hpp"
+
+// Transpose: result[j,i] = A[i,j]
+make_einsum_unary(ein, "ij->ji", mdA);
+ein.eval();
+auto res = ein.get_result_span();
+
+// Trace: sum of diagonal → scalar
+make_einsum_unary(ein, "ii->", mdA);
+ein.eval();
+int trace = ein.get_result()[0];
+
+// Diagonal extraction: result[i] = A[i,i]
+make_einsum_unary(ein, "ii->i", mdA);
+ein.eval();
+
+// Axis permutation: result[k,i,j] = A[i,j,k]
+make_einsum_unary(ein, "ijk->kij", mdA);
+ein.eval();
 ```
 
 ### Not yet supported
 
 - Dynamic (runtime) extents
-- More than two input tensors
-- Single-operand index permutation (true transpose: `"ij->ji"`)

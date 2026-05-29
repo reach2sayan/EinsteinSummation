@@ -70,6 +70,7 @@ add_library(einsum INTERFACE
         ${CMAKE_SOURCE_DIR}/include/einsum.hpp
         ${CMAKE_SOURCE_DIR}/include/einsum_helpers.hpp
         ${CMAKE_SOURCE_DIR}/include/unary_einsum.hpp
+        ${CMAKE_SOURCE_DIR}/include/n_einsum.hpp
         ${CMAKE_SOURCE_DIR}/include/input_handler.hpp
         ${CMAKE_SOURCE_DIR}/include/labels.hpp
         ${CMAKE_SOURCE_DIR}/include/matrices.hpp

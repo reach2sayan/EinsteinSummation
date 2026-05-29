@@ -31,9 +31,12 @@ include(FetchContent)
 # Suppress CMP0167 warning from Hana's CMakeLists (FindBoost removed in CMake 3.30+)
 set(CMAKE_POLICY_DEFAULT_CMP0167 NEW)
 
-# Boost.Hana — header-only, standalone (no other Boost headers needed)
-set(BOOST_HANA_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-set(BOOST_HANA_ENABLE_DOCS    OFF CACHE BOOL "" FORCE)
+# Disable tests/docs in all fetched dependencies
+set(BOOST_HANA_ENABLE_TESTING  OFF CACHE BOOL "" FORCE)
+set(BOOST_HANA_ENABLE_DOCS     OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_TESTING   OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+set(INSTALL_GTEST               OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
     hana
     GIT_REPOSITORY https://github.com/boostorg/hana.git

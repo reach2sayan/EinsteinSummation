@@ -33,6 +33,24 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   list(APPEND EINSUM_WARN_FLAGS -pedantic)
 endif()
 
+# ── Compile-time profiling ─────────────────────────────────────────────────────
+# Enable with:  cmake -DEINSUM_TRACE=ON ...
+# Clang: -ftime-trace  → per-TU <target>.json files next to the .o files,
+#                        open in chrome://tracing or speedscope.app
+# GCC:   -ftime-report → timing summary printed to stderr after each TU
+option(EINSUM_TRACE "Emit compile-time profiling info (Clang: -ftime-trace, GCC: -ftime-report)" ON)
+
+function(einsum_target_trace target)
+  if(NOT EINSUM_TRACE)
+    return()
+  endif()
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${target} PRIVATE -ftime-trace)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(${target} PRIVATE -ftime-report)
+  endif()
+endfunction()
+
 # Heavy headers shared across all translation units — compiled once as a PCH.
 set(EINSUM_PCH_HEADERS
   <algorithm>
@@ -136,12 +154,14 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/main.cpp)
   target_link_libraries(main PRIVATE einsum)
   einsum_target_compile_options(main)
   einsum_target_pch(main)
+  einsum_target_trace(main)
 endif()
 
 add_executable(einsum_benchmark benchmark/benchmark.cpp)
 target_link_libraries(einsum_benchmark PRIVATE einsum benchmark::benchmark)
 einsum_target_compile_options(einsum_benchmark)
 einsum_target_pch(einsum_benchmark)
+einsum_target_trace(einsum_benchmark)
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 enable_testing()
@@ -156,6 +176,7 @@ if(Boost_FOUND)
   target_include_directories(einsum_tests SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
   einsum_target_compile_options(einsum_tests)
   einsum_target_pch(einsum_tests)
+  einsum_target_trace(einsum_tests)
   add_test(NAME einsum_tests COMMAND einsum_tests)
 else()
   message(STATUS "Boost not found — skipping Boost.Test suite (tests/tests.cpp)")

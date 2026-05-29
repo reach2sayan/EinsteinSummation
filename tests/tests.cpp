@@ -145,7 +145,9 @@ BOOST_AUTO_TEST_CASE(EinsumTest_MatrixTranspose) {
   a.eval();
   RESULT_VIEW(a, res);
 
-  std::vector res_calc{1, 3, 2, 4};
+  // "ij,ji->ij": element-wise product of A with transpose(B)
+  // result[i,j] = A[i,j] * B[j,i]
+  std::vector res_calc{1, 6, 6, 16};
   std::mdspan<int, std::extents<size_t, 2, 2>> mdmatres{res_calc.data()};
   for (auto i = 0; i < 2; i++) {
     for (auto j = 0; j < 2; j++) {

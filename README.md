@@ -82,8 +82,21 @@ make_einsum(ein, "ij,jk", mdA, mdB); // equivalent to "ij,jk->ik"
 ein.eval();
 ```
 
+### Element-wise product with transposed operand
+
+```cpp
+std::vector A{1, 2, 3, 4};
+std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
+std::mdspan<int, std::extents<size_t, 2, 2>> mdB{A.data()};
+
+// result[i,j] = A[i,j] * B[j,i]
+make_einsum(ein, "ij,ji->ij", mdA, mdB);
+ein.eval();
+const auto& result = ein.get_result(); // [1, 6, 6, 16]
+```
+
 ### Not yet supported
 
 - Dynamic (runtime) extents
 - More than two input tensors
-- Matrix transpose (single-operand index permutation)
+- Single-operand index permutation (true transpose: `"ij->ji"`)

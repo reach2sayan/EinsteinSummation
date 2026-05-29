@@ -174,8 +174,8 @@ constexpr void Einsum<Labels, Matrices>::eval() noexcept {
 }
 
 #define make_einsum(name, inputstring, spanA, spanB)                           \
-  auto name = [spanA, spanB]() {                                               \
-    Matrices m{spanA, spanB};                                                  \
+  auto name = [_lhs = spanA, _rhs = spanB]() {                                \
+    Matrices m{_lhs, _rhs};                                                    \
     auto input = BOOST_HANA_STRING(inputstring);                               \
     auto labels = make_label_from_inputs(input);                               \
     return Einsum{labels, m};                                                  \

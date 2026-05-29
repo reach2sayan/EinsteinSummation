@@ -1,125 +1,89 @@
 [![CMake](https://github.com/reach2sayan/Einstein_Summation/actions/workflows/action.yml/badge.svg)](https://github.com/reach2sayan/Einstein_Summation/actions/workflows/action.yml) [![C++](https://img.shields.io/badge/C++-%2300599C.svg?logo=c%2B%2B&logoColor=white)](#)
 # Einstein Summation (einsum)
 
-A C++23 implementation of the Einstein summation convention for tensor operations. This library allows for concise
-notation of tensor operations through labeled indices, similar to NumPy's einsum function in Python.
-
-Uses [Boost Hana](https://github.com/boostorg/hana) extensibly 
-
-## Overview
-
-Einstein summation is a powerful notation for expressing operations on multi-dimensional arrays (tensors). This library
-implements this notation in C++23, leveraging modern features like , compile-time programming, and metaprogramming to
-provide efficient tensor operations with a clean interface. `std::mdspan`
+A C++23 header-only implementation of the Einstein summation convention for tensor operations, similar to NumPy's `einsum`. Index labels, output shape, and contraction axes are all resolved at compile time using [Boost.Hana](https://github.com/boostorg/hana) and `std::mdspan`.
 
 ## Features
 
 - Compact tensor operation notation using Einstein summation convention
-- Support for arbitrary dimensions and tensor ranks
-- Static dimension checking at compile time
-- Full support for C++23 features including `std::mdspan`
-- Template metaprogramming for compile-time optimization
-- Automatic result shape inference
+- Arbitrary tensor rank and dimension sizes (static extents only)
+- Dimension compatibility checked at compile time via `static_assert`
+- Automatic output shape inference when the `->` clause is omitted
+- Zero runtime overhead for index bookkeeping — all iteration spaces are `constexpr`
 
 ## Requirements
 
-- C++23 compatible compiler (tested with GCC)
-- CMake build system
-- Support for experimental features () `std::mdspan`
+- C++23 compiler — tested with GCC 13 and Clang 18
+- CMake ≥ 3.14
+- Boost (headers only — Hana)
+- [`kokkos/mdspan`](https://github.com/kokkos/mdspan) (fetched automatically via CMake FetchContent)
 
 ## Usage
 
-### Basic Matrix Multiplication
+Include `einsum.hpp` and use the `make_einsum` macro to declare an operation, then call `eval()`.  
+`get_result()` returns a `const std::array<T, N>&` owned by the einsum object — keep the object alive while using the reference.
 
-``` cpp
-// Create input data
+### Matrix multiplication
+
+```cpp
 std::vector A{0, 1, 2, 3, 4, 5};
 std::vector B{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
 
-// Create mdspans with appropriate dimensions
 std::mdspan<int, std::extents<size_t, 2, 3>> mdA{A.data()};
 std::mdspan<int, std::extents<size_t, 3, 4>> mdB{B.data()};
 
-// Perform matrix multiplication using einsum
-// "ij,jk->ik" represents matrix multiplication in Einstein notation
 make_einsum(ein, "ij,jk->ik", mdA, mdB);
 ein.eval();
-auto result = ein.get_result();
-
-// Result is now a 2x4 matrix
+const auto& result = ein.get_result(); // const std::array<int, 8>&
 ```
 
-### Hadamard Product (Element-wise Multiplication)
+### Hadamard product (element-wise multiplication)
 
-The Hadamard product performs element-wise multiplication between tensors of the same shape. Using Einstein notation,
-this operation can be expressed by using the same indices in both input tensors and the output:
-
-``` cpp
-// Create input data
+```cpp
 std::vector A{1, 2, 3, 4};
 std::vector B{5, 6, 7, 8};
 
-// Create mdspans with identical dimensions
 std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A.data()};
 std::mdspan<int, std::extents<size_t, 2, 2>> mdB{B.data()};
 
-// Perform element-wise multiplication (Hadamard product)
-// "ij,ij->ij" represents element-wise multiplication in Einstein notation
 make_einsum(ein, "ij,ij->ij", mdA, mdB);
 ein.eval();
-auto result = ein.get_result();
-
-// Result contains element-wise products: [5, 12, 21, 32]
+const auto& result = ein.get_result(); // [5, 12, 21, 32]
 ```
 
-### Batch Operations with Tensor Contraction
+### Element-wise squaring
 
-``` cpp
-std::vector A{/* data */};
-std::vector B{/* data */};
+```cpp
+std::vector mat{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4};
+std::mdspan<int, std::extents<size_t, 4, 4>> mdmat{mat.data()};
+
+make_einsum(ein, "ij,ij->ij", mdmat, mdmat);
+ein.eval();
+const auto& result = ein.get_result(); // [1,1,1,1, 4,4,4,4, 9,9,9,9, 16,16,16,16]
+```
+
+### Tensor contraction
+
+```cpp
 std::mdspan<int, std::extents<size_t, 2, 2, 2, 2>> mdA{A.data()};
 std::mdspan<int, std::extents<size_t, 2, 2, 2, 2>> mdB{B.data()};
 
-// Sum over 'w' and 'h' dimensions, keeping batch 'b', input 'i', and output 'j'
-make_einsum(result,"bhwi,bhwj->"bij", mdA, mdB);
-result.eval();
+// Sum over 'w' and 'h', keeping 'b', 'i', 'j'
+make_einsum(ein, "bhwi,bhwj->bij", mdA, mdB);
+ein.eval();
 ```
 
-### Matrix Transpose [[Not Supported Yet]]
+### Automatic output shape inference
 
-Matrix transpose can be elegantly expressed using einsum by swapping the indices in the output:
+If the `->` clause is omitted, the library infers the output indices as the sorted union of all non-repeated input indices:
 
-```cpp 
-std::vector A{1, 2, 3, 4}; 
-std::mdspan<int, std::extents<size_t, 2, 2>> mdA{A. data()};
-// Empty first operand, second operand with "ij", result with swapped indices "ji" 
-auto a = seinsum("ij", "ji", mdA); 
-a.eval(); 
-auto result = a.get_result();
-// Result is the transpose of the input matrix: [1, 3, 2, 4]
+```cpp
+make_einsum(ein, "ij,jk", mdA, mdB); // equivalent to "ij,jk->ik"
+ein.eval();
 ```
 
+### Not yet supported
 
-### Element-wise Squaring
-
-Einsum can also be used for element-wise operations on a single tensor by using it twice with identical indices:
-
-```cpp 
-std::vector mat{1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4}; 
-std::mdspan<int, std::extents<size_t, 4, 4>> mdmat{mat.data()};
-// Element-wise squaring using the same tensor twice 
-make_einsum(ein, "ij,ij->ij", mdmat, mdmat); 
-ein.eval(); 
-auto result = ein.get_result();
-// Result contains squared values: [1, 1, 1, 1, 4, 4, 4, 4, 9, 9, 9, 9, 16, 16, 16, 16]
-```
-
-
-### Automatic Result Shape Inference
-
-If you omit the result labels, the library will automatically determine the appropriate result shape:
-
-``` cpp
-auto result = auto_einsum("bhwi", "bhwj", mdA, mdB);
-result.eval();
-```
+- Dynamic (runtime) extents
+- More than two input tensors
+- Matrix transpose (single-operand index permutation)

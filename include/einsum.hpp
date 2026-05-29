@@ -108,18 +108,16 @@ public:
                                      DECAY(Labels)::collapsed_labels);
 
   constexpr Einsum(std::same_as<Labels> auto &&,
-                   std::same_as<Matrices> auto &&matrices)
-      : result{}, output{result.data(), extents}, left{FWD(matrices).left},
-        right{FWD(matrices).right} {}
+                   std::same_as<Matrices> auto &&matrices) noexcept
+      : result{}, left{FWD(matrices).left}, right{FWD(matrices).right} {}
   constexpr static auto extents = get_extents(out_dims);
-  constexpr void eval() const;
-  constexpr auto get_result() const { return output; }
+  constexpr void eval() noexcept;
+  [[nodiscard]] constexpr auto &get_result() const noexcept { return result; }
 
 private:
   constexpr static auto output_size = boost::hana::fold_left(
       out_dims, 1, [](auto x, auto y) { return x * y.value; });
   std::array<value_type, output_size> result;
-  std::mdspan<value_type, DECAY(decltype(extents))> output;
   DECAY(Matrices)::l_matrix_t left;
   DECAY(Matrices)::r_matrix_t right;
 };
@@ -127,8 +125,19 @@ private:
 template <CLabels Labels, CMatrices Matrices>
 Einsum(Labels &&, Matrices &&) -> Einsum<Labels, Matrices>;
 
+#define assign_value_macro                                                     \
+  auto lindices = boost::hana::transform(DECAY(Labels)::left_labels,           \
+                                         get_indices_from_map);                \
+  auto rindices = boost::hana::transform(DECAY(Labels)::right_labels,          \
+                                         get_indices_from_map);                \
+  auto out_indices = boost::hana::values(out_indices_map);                     \
+  PRINT_ITERATION(lindices, rindices, out_indices);                            \
+  assign_values(lindices, rindices, out_indices)
+
 template <CLabels Labels, CMatrices Matrices>
-constexpr void Einsum<Labels, Matrices>::eval() const {
+constexpr void Einsum<Labels, Matrices>::eval() noexcept {
+  auto output =
+      std::mdspan<value_type, DECAY(decltype(extents))>{result.data(), extents};
 
   auto assign_values = [&](auto &&lindices, auto &&rindices,
                            auto &&out_indices) {
@@ -143,16 +152,10 @@ constexpr void Einsum<Labels, Matrices>::eval() const {
   };
   if constexpr (boost::hana::size(DECAY(Labels)::collapsed_labels) == 0) {
     boost::hana::for_each(output_iterator_label_map, [&](auto out_indices_map) {
-      auto get_indices_from_map = [&](auto key) {
+      auto get_indices_from_map = [&](auto &&key) {
         return *boost::hana::find(out_indices_map, key);
       };
-      auto lindices = boost::hana::transform(DECAY(Labels)::left_labels,
-                                             get_indices_from_map);
-      auto rindices = boost::hana::transform(DECAY(Labels)::right_labels,
-                                             get_indices_from_map);
-      auto out_indices = boost::hana::values(out_indices_map);
-      PRINT_ITERATION(lindices, rindices, out_indices);
-      assign_values(lindices, rindices, out_indices);
+      assign_value_macro;
     });
   } else {
     boost::hana::for_each(output_iterator_label_map, [&](auto out_indices_map) {
@@ -164,13 +167,7 @@ constexpr void Einsum<Labels, Matrices>::eval() const {
                   boost::hana::find(collapsed_indices_map, key));
               return *val;
             };
-            auto lindices = boost::hana::transform(DECAY(Labels)::left_labels,
-                                                   get_indices_from_map);
-            auto rindices = boost::hana::transform(DECAY(Labels)::right_labels,
-                                                   get_indices_from_map);
-            auto out_indices = boost::hana::values(out_indices_map);
-            PRINT_ITERATION(lindices, rindices, out_indices);
-            assign_values(lindices, rindices, out_indices);
+            assign_value_macro;
           });
     });
   }

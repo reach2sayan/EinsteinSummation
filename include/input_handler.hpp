@@ -18,9 +18,7 @@ consteval auto tuple_to_string(auto &&tuple) {
   });
 }
 
-consteval auto string_to_tuple(auto &&str) {}
-
-template <typename Xs> consteval auto stable_unique(Xs xs) {
+consteval auto stable_unique(auto&& xs) {
   return boost::hana::fold_left(
       xs, boost::hana::make_tuple(), [](auto acc, auto x) {
         return boost::hana::if_(boost::hana::contains(acc, x), acc,

@@ -25,7 +25,8 @@ struct Matrices<T, std::index_sequence<Ls...>, std::index_sequence<Rs...>> {
 
   l_matrix_t left;
   r_matrix_t right;
-  constexpr Matrices(auto &&L_, auto &&R_) : left{FWD(L_)}, right{FWD(R_)} {}
+  constexpr Matrices(auto &&L_, auto &&R_) noexcept
+      : left{FWD(L_)}, right{FWD(R_)} {}
 };
 
 template <typename T, std::size_t... Ls, std::size_t... Rs>

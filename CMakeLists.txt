@@ -4,11 +4,18 @@ project(EinsteinSummation LANGUAGES CXX)
 # ── Global settings ───────────────────────────────────────────────────────────
 
 # Use ccache if available to cache compiled objects across rebuilds.
-find_program(CCACHE_PROGRAM ccache)
-if(CCACHE_PROGRAM)
-  message(STATUS "ccache found: ${CCACHE_PROGRAM}")
-  set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
-  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+# ccache is disabled when EINSUM_TRACE=ON because it suppresses -ftime-trace
+# JSON output (cache hits restore the .o but never write the .json sidecar).
+option(EINSUM_TRACE "Emit compile-time profiling info (Clang: -ftime-trace, GCC: -ftime-report)" OFF)
+if(NOT EINSUM_TRACE)
+  find_program(CCACHE_PROGRAM ccache)
+  if(CCACHE_PROGRAM)
+    message(STATUS "ccache found: ${CCACHE_PROGRAM}")
+    set(CMAKE_C_COMPILER_LAUNCHER   "${CCACHE_PROGRAM}")
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  endif()
+else()
+  message(STATUS "EINSUM_TRACE=ON — ccache disabled so -ftime-trace JSON files are emitted")
 endif()
 
 set(CMAKE_CXX_STANDARD 23)
@@ -38,7 +45,6 @@ endif()
 # Clang: -ftime-trace  → per-TU <target>.json files next to the .o files,
 #                        open in chrome://tracing or speedscope.app
 # GCC:   -ftime-report → timing summary printed to stderr after each TU
-option(EINSUM_TRACE "Emit compile-time profiling info (Clang: -ftime-trace, GCC: -ftime-report)" ON)
 
 function(einsum_target_trace target)
   if(NOT EINSUM_TRACE)

@@ -16,7 +16,7 @@ if (NOT CMAKE_HOST_WIN32
     endif ()
 endif ()
 
-project(einsum VERSION 2.0.0 LANGUAGES CXX)
+project(einsum VERSION 2.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
